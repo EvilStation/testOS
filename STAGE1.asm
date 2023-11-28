@@ -66,9 +66,9 @@ ReadSectors:
      .MAIN:
           mov     di, 0x0005                          ; five retries for error
      .SECTORLOOP:
-          push    ax                                  ; номер первого сектора
+          push    ax                                  ; номер текущего сектора
           push    bx                                  ; смещение по которому будет записан текущий сектор
-          push    cx                                  ; кол-во секторов
+          push    cx                                  ; кол-во секторов для загрузки
           call    LBACHS                              ; convert starting sector to CHS
           mov     ah, 0x02                            ; BIOS read sector
           mov     al, 0x01                            ; read one sector
@@ -76,7 +76,7 @@ ReadSectors:
           mov     cl, BYTE [absoluteSector]           ; sector
           mov     dh, BYTE [absoluteHead]             ; head
           mov     dl, BYTE [bootDisk]                 ; drive
-          int     0x13                                ; invoke BIOS
+          int     0x13                                ; invoke BIOS   
           jnc     .SUCCESS                            ; test for read error
           xor     ax, ax                              ; BIOS reset disk
           int     0x13                                ; invoke BIOS
@@ -288,7 +288,7 @@ main:
      
           shr     dx, 0x0004                          ; take high twelve bits
           ; and     dx, 1111111111110000b
-          
+               
      .DONE:
           mov     WORD [cluster], dx                  ; store new cluster
           cmp     dx, 0x0FF0                          ; test for end of file
@@ -301,7 +301,7 @@ main:
           ; push    WORD 0x0050
           ; push    WORD 0x0000
           ; retf
-          jmp 0x0050:0x0000
+          jmp     0x0050:0x0000
 
      FAILURE:
      
@@ -319,7 +319,7 @@ main:
      
      datasector  dw 0x0000
      cluster     dw 0x0000
-     ImageName   db "STAGE2  SYS"
+     ImageName   db "KRNLDR  SYS"
      msgLoading  db 0x0D, 0x0A, "Loading Boot Image ", 0x0D, 0x0A, 0x00
      msgCRLF     db 0x0D, 0x0A, 0x00
      msgProgress db ".", 0x00

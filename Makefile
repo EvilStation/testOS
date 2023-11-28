@@ -4,8 +4,8 @@
 BUILD_DIR = build
 IMG_DIR = img
 
-STAGE1 = STAGE1.asm
-STAGE2 = STAGE2.asm
+STAGE1 = STAGE1.asm 
+STAGE2 = KRNLDR.asm # Kernel Loader
 STAGE1 := $(strip $(patsubst %.asm, $(BUILD_DIR)/%.bin, $(STAGE1)))
 STAGE2 := $(strip $(patsubst %.asm, $(BUILD_DIR)/%.SYS, $(STAGE2)))
 DISK_IMG := floppy.img
