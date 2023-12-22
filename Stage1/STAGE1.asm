@@ -1,45 +1,35 @@
 bits	16						; we are in 16 bit real mode
 
+org		0					; we will set regisers later
+
 start:	jmp	main					; jump to start of bootloader
 
-;******************************************************************************************************************
-;	                                    BPB (BIOS Parameter Block)		
-;******************************************************************************************************************
-bpbOEM				DB "My OS   "  ; OEM идентификатор размером 8 байт
-bpbBytesPerSector  	     DW 512         ; кол-во байт в секторе
-bpbSectorsPerCluster     DB 1		     ; кол-во секторов в кластере
-bpbReservedSectors 	     DW 1           ; кол-во секторов не включенных в FAT. К ним относится MBR
-bpbNumberOfFATs	     DB 2		     ; кол-во FAT. В FAT12 их всегда 2
-bpbRootEntries	          DW 224         ; кол-во записей в корневом каталоге
-bpbTotalSectors 	     DW 2880        ; кол-во секторов
+;*********************************************
+;	BIOS Parameter Block
+;*********************************************
 
-bpbMedia                 DB 11110000b   ; Bits 0: Sides/Heads = 0 if it is single sided, 1 if its double sided
-								; Bits 1: Size = 0 if it has 9 sectors per FAT, 1 if it has 8.
-                                        ; Bits 2: Density = 0 if it has 80 tracks, 1 if it is 40 tracks.
-                                        ; Bits 3: Type = 0 if its a fixed disk (Such as hard drive), 
-								; 1 if removable (Such as floppy drive)
-                                        ; Bits 4 to 7 are unused, and always 1
+; BPB Begins 3 bytes from start. We do a far jump, which is 3 bytes in size.
+; If you use a short jump, add a "nop" after it to offset the 3rd byte.
 
-bpbSectorsPerFAT	     DW 9           ; кол-во секторов в FAT
-bpbSectorsPerTrack 	     DW 18          ; кол-во секторов в треке
-bpbHeadsPerCylinder      DW 2           ; кол-во головок	
-bpbHiddenSectors         DD 0           ; кол-во скрытых секторов (от начала физического диска до начала тома)
-
-bpbTotalSectorsBig       DD 0           ;	Большое кол-во секторов. Это поле устанавливается, если в томе имеется 
-                                        ; более 65535 секторов, в результате чего значение не помещается в 
-								; запись bpbTotalSectors
-
-;******************************************************************************************************************
-;	                                    EBPB для FAT12
-;******************************************************************************************************************
-bsDriveNumber 	     DB 0                ;	номер диска. Значение здесь должно быть идентично значению, 
-                                        ; возвращаемому int 0x13 или передаваемому в регистр dl
-
-bsUnused 	         DB 0                 ; Флаги в Windows NT. Зарезервировано в противном случае.
-bsExtBootSignature 	 DB 0x29            ; 0x28 and 0x29 indicate this is a MS/PC-DOS version 4.0 Bios Parameter Block
-bsSerialNumber	     DD 0                ; VolumeID 'Serial' number. Used for tracking volumes between computers
-bsVolumeLabel 	     DB "FLOPPY     "    ; имя тома размером 11 байт
-bsFileSystem 	     DB "FAT12   "       ; имя файловой системы размером 8 байт
+bpbOEM			db "My OS   "
+bpbBytesPerSector:  	DW 512
+bpbSectorsPerCluster: 	DB 1
+bpbReservedSectors: 	DW 1
+bpbNumberOfFATs: 	DB 2
+bpbRootEntries: 	DW 224
+bpbTotalSectors: 	DW 2880
+bpbMedia: 		DB 0xf0  ;; 0xF1
+bpbSectorsPerFAT: 	DW 9
+bpbSectorsPerTrack: 	DW 18
+bpbHeadsPerCylinder: 	DW 2
+bpbHiddenSectors: 	DD 0
+bpbTotalSectorsBig:     DD 0
+bsDriveNumber: 	        DB 0
+bsUnused: 		DB 0
+bsExtBootSignature: 	DB 0x29
+bsSerialNumber:	        DD 0xa0a1a2a3
+bsVolumeLabel: 	        DB "MOS FLOPPY "
+bsFileSystem: 	        DB "FAT12   "
 
 ;************************************************;
 ;	Prints a string
@@ -48,54 +38,17 @@ bsFileSystem 	     DB "FAT12   "       ; имя файловой системы 
 Print:
 			lodsb				; load next byte from string from SI to AL
 			or	al, al			; Does AL=0?
-			jz	PrintDone		     ; Yep, null terminator found-bail out
+			jz	PrintDone		; Yep, null terminator found-bail out
 			mov	ah, 0eh			; Nope-Print the character
 			int	10h
 			jmp	Print			; Repeat until null terminator found
 	PrintDone:
-			ret				     ; we are done, so return
+			ret				; we are done, so return
 
-;************************************************;
-; Reads a series of sectors
-; CX=>Number of sectors to read
-; AX=>Starting sector
-; ES:BX=>Buffer to read to
-;************************************************;
 
-ReadSectors:
-     .MAIN:
-          mov     di, 0x0005                          ; five retries for error
-     .SECTORLOOP:
-          push    ax                                  ; номер текущего сектора
-          push    bx                                  ; смещение по которому будет записан текущий сектор
-          push    cx                                  ; кол-во секторов для загрузки
-          call    LBACHS                              ; convert starting sector to CHS
-          mov     ah, 0x02                            ; BIOS read sector
-          mov     al, 0x01                            ; read one sector
-          mov     ch, BYTE [absoluteTrack]            ; track
-          mov     cl, BYTE [absoluteSector]           ; sector
-          mov     dh, BYTE [absoluteHead]             ; head
-          mov     dl, BYTE [bootDisk]                 ; drive
-          int     0x13                                ; invoke BIOS   
-          jnc     .SUCCESS                            ; test for read error
-          xor     ax, ax                              ; BIOS reset disk
-          int     0x13                                ; invoke BIOS
-          dec     di                                  ; decrement error counter
-          pop     cx
-          pop     bx
-          pop     ax
-          jnz     .SECTORLOOP                         ; attempt to read again
-          int     0x18
-     .SUCCESS:
-          mov     si, msgProgress
-          call    Print
-          pop     cx
-          pop     bx
-          pop     ax
-          add     bx, WORD [bpbBytesPerSector]        ; queue next buffer
-          inc     ax                                  ; queue next sector
-          loop    .MAIN                               ; read next sector
-          ret
+absoluteSector db 0x00
+absoluteHead   db 0x00
+absoluteTrack  db 0x00
 
 ;************************************************;
 ; Convert CHS to LBA
@@ -109,7 +62,7 @@ ClusterLBA:
           mul     cx
           add     ax, WORD [datasector]               ; base data sector
           ret
-     
+
 ;************************************************;
 ; Convert LBA to CHS
 ; AX=>LBA Address to convert
@@ -131,6 +84,50 @@ LBACHS:
           mov     BYTE [absoluteTrack], al
           ret
 
+
+;************************************************;
+; Reads a series of sectors
+; CX=>Number of sectors to read
+; AX=>Starting sector
+; ES:BX=>Buffer to read to
+;************************************************;
+
+ReadSectors:
+     .MAIN:
+          mov     di, 0x0005                          ; five retries for error
+     .SECTORLOOP:
+          push    ax
+          push    bx
+          push    cx
+          call    LBACHS                              ; convert starting sector to CHS
+          mov     ah, 0x02                            ; BIOS read sector
+          mov     al, 0x01                            ; read one sector
+          mov     ch, BYTE [absoluteTrack]            ; track
+          mov     cl, BYTE [absoluteSector]           ; sector
+          mov     dh, BYTE [absoluteHead]             ; head
+          mov     dl, BYTE [bsDriveNumber]            ; drive
+          int     0x13                                ; invoke BIOS
+          jnc     .SUCCESS                            ; test for read error
+          xor     ax, ax                              ; BIOS reset disk
+          int     0x13                                ; invoke BIOS
+          dec     di                                  ; decrement error counter
+          pop     cx
+          pop     bx
+          pop     ax
+          jnz     .SECTORLOOP                         ; attempt to read again
+          int     0x18
+     .SUCCESS:
+          mov     si, msgProgress
+          call    Print
+          pop     cx
+          pop     bx
+          pop     ax
+          add     bx, WORD [bpbBytesPerSector]        ; queue next buffer
+          inc     ax                                  ; queue next sector
+          loop    .MAIN                               ; read next sector
+          ret
+
+
 ;*********************************************
 ;	Bootloader Entry Point
 ;*********************************************
@@ -141,14 +138,12 @@ main:
      ; code located at 0000:7C00, adjust segment registers
      ;----------------------------------------------------
      
-          cli						     ; disable interrupts
+          cli						; disable interrupts
           mov     ax, 0x07C0				; setup registers to point to our segment
           mov     ds, ax
           mov     es, ax
           mov     fs, ax
           mov     gs, ax
-
-          mov BYTE [bootDisk], dl
 
      ;----------------------------------------------------
      ; create stack
@@ -214,7 +209,7 @@ main:
           loop    .LOOP
           jmp     FAILURE
 
-     ;-------------------- --------------------------------
+     ;----------------------------------------------------
      ; Load FAT
      ;----------------------------------------------------
 
@@ -222,8 +217,6 @@ main:
      
      ; save starting cluster of boot image
      
-          mov     si, msgCRLF
-          call    Print
           mov     dx, WORD [di + 0x001A]
           mov     WORD [cluster], dx                  ; file's first cluster
           
@@ -245,8 +238,6 @@ main:
 
      ; read image file into memory (0050:0000)
      
-          mov     si, msgCRLF
-          call    Print
           mov     ax, 0x0050
           mov     es, ax                              ; destination for image
           mov     bx, 0x0000                          ; destination for image
@@ -257,6 +248,7 @@ main:
      ;----------------------------------------------------
 
      LOAD_IMAGE:
+     
           mov     ax, WORD [cluster]                  ; cluster to read
           pop     bx                                  ; buffer to read into
           call    ClusterLBA                          ; convert cluster to LBA
@@ -269,27 +261,26 @@ main:
      
           mov     ax, WORD [cluster]                  ; identify current cluster
           mov     cx, ax                              ; copy current cluster
-          mov     dx, ax 
-                                                      ; copy current cluster
+          mov     dx, ax                              ; copy current cluster
           shr     dx, 0x0001                          ; divide by two
           add     cx, dx                              ; sum for (3/2)
           mov     bx, 0x0200                          ; location of FAT in memory
           add     bx, cx                              ; index into FAT
           mov     dx, WORD [bx]                       ; read two bytes from FAT
-          cmp    ax, 0x0001
+          test    ax, 0x0001
           jnz     .ODD_CLUSTER
           
      .EVEN_CLUSTER:
      
           and     dx, 0000111111111111b               ; take low twelve bits
-          jmp     .DONE
+         jmp     .DONE
          
      .ODD_CLUSTER:
      
           shr     dx, 0x0004                          ; take high twelve bits
-          ; and     dx, 1111111111110000b
-               
+          
      .DONE:
+     
           mov     WORD [cluster], dx                  ; store new cluster
           cmp     dx, 0x0FF0                          ; test for end of file
           jb      LOAD_IMAGE
@@ -298,11 +289,10 @@ main:
      
           mov     si, msgCRLF
           call    Print
-          ; push    WORD 0x0050
-          ; push    WORD 0x0000
-          ; retf
-          jmp     0x0050:0x0000
-
+          push    WORD 0x0050
+          push    WORD 0x0000
+          retf
+          
      FAILURE:
      
           mov     si, msgFailure
@@ -310,20 +300,15 @@ main:
           mov     ah, 0x00
           int     0x16                                ; await keypress
           int     0x19                                ; warm boot computer
-     
-     bootDisk db 0x00
 
-     absoluteSector db 0x00
-     absoluteHead   db 0x00
-     absoluteTrack  db 0x00
-     
+
      datasector  dw 0x0000
      cluster     dw 0x0000
      ImageName   db "KRNLDR  SYS"
-     msgLoading  db 0x0D, 0x0A, "Loading Boot Image ", 0x0D, 0x0A, 0x00
+     msgLoading  db 0x0D, 0x0A, "Loading Boot Image ", 0x00
      msgCRLF     db 0x0D, 0x0A, 0x00
      msgProgress db ".", 0x00
-     msgFailure  db 0x0D, 0x0A, "ERROR : Press Any Key to Reboot", 0x0A, 0x00
+     msgFailure  db 0x0D, 0x0A, "MISSING OR CURRUPT KRNLDR. Press Any Key to Reboot", 0x0D, 0x0A, 0x00
      
-TIMES 510-($-$$) DB 0
-DW 0xAA55
+          TIMES 510-($-$$) DB 0
+          DW 0xAA55
