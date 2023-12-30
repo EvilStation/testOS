@@ -40,7 +40,7 @@ bits 32
 %define		VIDMEM	0xB8000			; video memory
 %define		COLS	80			; width and height of screen
 %define		LINES	25
-%define		CHAR_ATTRIB 63			; character attribute (White text on light blue background)
+%define		CHAR_ATTRIB 0xFC			; character attribute (White text on light blue background)
 
 _CurX db 0					; current x/y location
 _CurY db 0

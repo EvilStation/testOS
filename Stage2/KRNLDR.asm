@@ -49,47 +49,47 @@ main:
 	sti						; enable interrupts
 
 	;-------------------------------;
-	;   Install our GDT		;
+	;   Install our GDT				;
 	;-------------------------------;
 
 	call	InstallGDT		; install our GDT
 
 	;-------------------------------;
-	;   Enable A20			;
+	;   Enable A20					;
 	;-------------------------------;
 
 	call	EnableA20_KKbrd_Out
 
 	;-------------------------------;
-	;   Print loading message	;
+	;   Print loading message		;
 	;-------------------------------;
 
 	mov	si, LoadingMsg
 	call	Puts16
 
         ;-------------------------------;
-        ; Initialize filesystem		;
+        ; Initialize filesystem			;
         ;-------------------------------;
 
-	call	LoadRoot		; Load root directory table
+	call	LoadRoot					; Load root directory table
 
         ;-------------------------------;
-        ; Load Kernel			;
+        ; Load Kernel					;
         ;-------------------------------;
 
-	mov	ebx, 0						; BX:BP points to buffer to load to
-    mov	bp, IMAGE_RMODE_BASE
-	mov	si, ImageName				; our file to load
-	call	LoadFile				; load our file
-	mov	dword [ImageSize], ecx	; save size of kernel
-	cmp	ax, 0						; Test for success
-	je	EnterStage3					; yep--onto Stage 3!
-	mov	si, msgFailure				; Nope--print error
+	mov		ebx, 0						; BX:BP points to buffer to load to
+    mov		bp, IMAGE_RMODE_BASE
+	mov		si, ImageName				; our file to load
+	call	LoadFile					; load our file
+	mov		dword [ImageSize], ecx		; save size of kernel
+	cmp		ax, 0						; Test for success
+	je		EnterStage3					; yep--onto Stage 3!
+	mov		si, msgFailure				; Nope--print error
 	call	Puts16
-	mov	ah, 0
-	int     0x16                    ; await keypress
-	int     0x19                    ; warm boot computer
-	cli								; If we get here, something really went wong
+	mov		ah, 0
+	int     0x16                    	; await keypress
+	int     0x19                    	; warm boot computer
+	cli									; If we get here, something really went wong
 	hlt
 
 	;-------------------------------;
@@ -145,9 +145,7 @@ CopyImage:
 	;---------------------------------------;
 	;   Execute Kernel			;
 	;---------------------------------------;
-
-	jmp	CODE_DESC:IMAGE_PMODE_BASE; jump to our kernel! Note: This assumes Kernel's entry point is at 1 MB
-
+	jmp	CODE_DESC:IMAGE_PMODE_BASE 
 	;---------------------------------------;
 	;   Stop execution			;
 	;---------------------------------------;

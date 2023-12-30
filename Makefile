@@ -8,6 +8,8 @@ KRNL = $(BUILD_DIR)/KRNL.SYS
 DISK_IMG = $(IMG_DIR)/floppy.img
 
 
+all: $(DISK_IMG)
+
 $(DISK_IMG): stage1 stage2 kernel
 	dd if=/dev/zero of=$(DISK_IMG) bs=512 count=2880
 	LOOPOUTPUT=$$(sudo losetup -f) && \
